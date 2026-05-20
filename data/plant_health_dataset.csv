@@ -1,0 +1,16 @@
+water_temp,ph,oxygen,humidity,status
+24,6.8,7,70,Healthy
+25,6.5,6.5,65,Healthy
+26,6.7,6.8,72,Healthy
+30,8.2,3,40,Danger
+31,8.0,2.5,35,Danger
+29,7.9,3.5,45,Warning
+28,7.5,4.5,50,Warning
+23,6.4,7.2,75,Healthy
+27,7.2,5,60,Warning
+32,8.5,2,30,Danger
+22,6.6,8,80,Healthy
+21,6.3,7.5,78,Healthy
+33,8.7,1.5,25,Danger
+29,7.8,4,48,Warning
+24,6.9,6.9,68,Healthy
