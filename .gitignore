@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+aquaponics.db
+aquaponics_report.pdf
