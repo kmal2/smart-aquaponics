@@ -1,14 +1,11 @@
 import random
 
 def generate_sensor_data():
-
-    data = {
-        "water_temp": round(random.uniform(22, 32), 2),
-        "air_temp": round(random.uniform(20, 38), 2),
-        "humidity": round(random.uniform(40, 90), 2),
-        "ph": round(random.uniform(5.5, 8.5), 2),
-        "oxygen": round(random.uniform(3, 10), 2),
-        "water_level": round(random.uniform(30, 100), 2)
+    return {
+        "water_temp": round(random.uniform(20, 30), 2),
+        "ph": round(random.uniform(6.5, 8.0), 2),
+        "oxygen": round(random.uniform(4, 10), 2),
+        "humidity": round(random.uniform(40, 80), 2),
+        "air_temp": round(random.uniform(22, 35), 2),
+        "water_level": round(random.uniform(60, 100), 2)
     }
-
-    return data

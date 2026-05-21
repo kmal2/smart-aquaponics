@@ -1,365 +1,234 @@
 import streamlit as st
-import joblib
+import requests
 import pandas as pd
+import datetime
+import numpy as np
 
-from automation import automation_control
-from database import save_data, get_data
-from simulation import generate_sensor_data
-from report import generate_pdf
+from streamlit_autorefresh import st_autorefresh
+from db import insert_data
 
-# ==============================
+# =========================
+# BLYNK CONFIG
+# =========================
+BLYNK_AUTH = "05GthB1qrQcqSaToJwwYyruodxK-_WdV"
+
+# =========================
 # PAGE CONFIG
-# ==============================
+# =========================
+st.set_page_config(page_title="Smart Aquaponics Dashboard", layout="wide")
+st.title("🌱 Smart Aquaponics AI Dashboard")
 
-st.set_page_config(
-    page_title="Smart Aquaponics AI System",
-    layout="wide"
-)
+# =========================
+# AUTO REFRESH
+# =========================
+st_autorefresh(interval=3000, key="refresh")
 
-# ==============================
-# UI POLISH (Professional Look)
-# ==============================
+# =========================
+# SAFE BLYNK GET
+# =========================
+def get_blynk(pin):
+    url = f"https://blynk.cloud/external/api/get?token={BLYNK_AUTH}&{pin}"
+    try:
+        r = requests.get(url, timeout=3)
+        return float(r.text)
+    except:
+        return 0.0
 
-st.markdown("""
-<style>
-body {
-    background-color: #0e1117;
-}
+# =========================
+# SEND TO BLYNK
+# =========================
+def send_to_blynk(pin, value):
+    url = f"https://blynk.cloud/external/api/update?token={BLYNK_AUTH}&{pin}={value}"
+    try:
+        requests.get(url, timeout=3)
+    except:
+        pass
 
-div[data-testid="metric-container"] {
-    background-color: #1c1f26;
-    border-radius: 12px;
-    padding: 15px;
-    box-shadow: 0px 0px 10px rgba(0,0,0,0.4);
-}
+# =========================
+# LIVE DATA
+# =========================
+water_temp = get_blynk("v0")
+ph = get_blynk("v1")
+oxygen = get_blynk("v2")
+humidity = get_blynk("v3")
+air_temp = get_blynk("v4")
+water_level = get_blynk("v5")
 
-h1, h2, h3 {
-    color: #4CAF50;
-}
+# =========================
+# SAVE TO DATABASE
+# =========================
+insert_data((
+    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    water_temp,
+    ph,
+    oxygen,
+    humidity,
+    air_temp,
+    water_level
+))
 
-.stButton>button {
-    background-color: #4CAF50;
-    color: white;
-    border-radius: 8px;
-    padding: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
+# =========================
+# SESSION HISTORY
+# =========================
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-st.title("🌱 Smart Aquaponics AI System")
+st.session_state.history.append({
+    "time": datetime.datetime.now().strftime("%H:%M:%S"),
+    "water_temp": water_temp,
+    "ph": ph,
+    "oxygen": oxygen,
+    "humidity": humidity,
+    "air_temp": air_temp,
+    "water_level": water_level
+})
 
-st.markdown("""
-### 🌿 Smart Farming Control Center
-AI • IoT Simulation • Automation • Real-time Monitoring
-""")
+st.session_state.history = st.session_state.history[-30:]
 
-st.markdown("🟢 System Live Status: ACTIVE")
-st.progress(100)
+df = pd.DataFrame(st.session_state.history)
 
-# ==============================
-# LOGIN SYSTEM
-# ==============================
+# =========================
+# SENSOR DISPLAY
+# =========================
+st.subheader("📡 Live Sensors")
 
-users = {
-    "admin": "1234",
-    "engineer": "iot2026"
-}
+col1, col2, col3 = st.columns(3)
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+col1.metric("🌡 Water Temp", water_temp)
+col2.metric("🧪 pH", ph)
+col3.metric("🫧 Oxygen", oxygen)
 
-if "login_error" not in st.session_state:
-    st.session_state.login_error = ""
+col4, col5, col6 = st.columns(3)
 
-if not st.session_state.logged_in:
+col4.metric("💧 Humidity", humidity)
+col5.metric("🌬 Air Temp", air_temp)
+col6.metric("🚰 Water Level", water_level)
 
-    st.subheader("🔐 Login")
-
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("Login"):
-            if username in users and users[username] == password:
-                st.session_state.logged_in = True
-                st.rerun()
-            else:
-                st.session_state.login_error = "❌ Invalid credentials"
-
-    with col2:
-        if st.button("Reset"):
-            st.session_state.logged_in = False
-            st.session_state.login_error = ""
-            st.rerun()
-
-    if st.session_state.login_error:
-        st.error(st.session_state.login_error)
-
-    st.stop()
-
-# ==============================
-# LOAD MODELS
-# ==============================
-
-plant_model = joblib.load("plant_health_model.pkl")
-fish_model = joblib.load("fish_health_model.pkl")
-
-# ==============================
-# SENSOR DATA
-# ==============================
-
-data = generate_sensor_data()
-save_data(data)
-
-# ==============================
-# AI PREDICTIONS
-# ==============================
-
-plant_input = pd.DataFrame([[
-    data['water_temp'],
-    data['ph'],
-    data['oxygen'],
-    data['humidity']
-]], columns=["water_temp", "ph", "oxygen", "humidity"])
-
-plant_prediction = plant_model.predict(plant_input)[0]
-
-fish_input = pd.DataFrame([[
-    data['water_temp'],
-    data['ph'],
-    data['oxygen']
-]], columns=["water_temp", "ph", "oxygen"])
-
-fish_prediction = fish_model.predict(fish_input)[0]
-
-# ==============================
-# AUTOMATION
-# ==============================
-
-devices = automation_control(data)
-
-# ==============================
-# ALERT SYSTEM
-# ==============================
-
-alerts = []
-
-if data["oxygen"] < 5:
-    alerts.append("Low Oxygen Level")
-
-if data["ph"] < 6 or data["ph"] > 8:
-    alerts.append("pH Out of Safe Range")
-
-if data["water_temp"] > 30:
-    alerts.append("High Water Temperature")
-
-if fish_prediction != "Healthy":
-    alerts.append("Fish Health Risk Detected")
-
-# ==============================
-# SYSTEM SCORE
-# ==============================
+# =========================
+# HEALTH SCORE
+# =========================
+st.divider()
 
 score = 100
 
-if data["oxygen"] < 5:
-    score -= 25
-if data["ph"] < 6 or data["ph"] > 8:
-    score -= 25
-if data["water_temp"] > 30:
-    score -= 20
-if fish_prediction != "Healthy":
+if oxygen < 5:
     score -= 30
+if water_temp > 30:
+    score -= 25
+if ph < 6 or ph > 8:
+    score -= 20
 
-status = "🟢 Healthy"
-if score < 80:
-    status = "🟡 Warning"
-if score < 50:
-    status = "🔴 Critical"
+st.subheader("🤖 System Health")
+st.metric("💚 Health Score", score)
 
-# ==============================
-# DASHBOARD HEADER
-# ==============================
+if score > 80:
+    st.success("🟢 System Healthy")
+elif score > 50:
+    st.warning("🟡 Warning State")
+else:
+    st.error("🔴 Critical State")
 
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric("System Status", status)
-col2.metric("Health Score", f"{score}/100")
-col3.metric("Plant", plant_prediction)
-col4.metric("Fish", fish_prediction)
-
-st.divider()
-
-# ==============================
-# SENSOR DATA
-# ==============================
-
-st.subheader("📡 Live Sensor Data")
-
-c1, c2, c3 = st.columns(3)
-c1.metric("Water Temp", f"{data['water_temp']} °C")
-c2.metric("pH", data['ph'])
-c3.metric("Oxygen", f"{data['oxygen']} mg/L")
-
-c4, c5, c6 = st.columns(3)
-c4.metric("Humidity", f"{data['humidity']} %")
-c5.metric("Air Temp", f"{data['air_temp']} °C")
-c6.metric("Water Level", f"{data['water_level']} %")
-
-st.divider()
-
-# ==============================
-# AI ANALYSIS
-# ==============================
-
-st.subheader("🧠 AI Analysis")
-
-colA, colB = st.columns(2)
-
-with colA:
-    st.markdown("### 🌱 Plant Health")
-    if plant_prediction == "Healthy":
-        st.success(plant_prediction)
-    elif plant_prediction == "Warning":
-        st.warning(plant_prediction)
-    else:
-        st.error(plant_prediction)
-
-with colB:
-    st.markdown("### 🐟 Fish Health")
-    if fish_prediction == "Healthy":
-        st.success(fish_prediction)
-    elif fish_prediction == "Stress":
-        st.warning(fish_prediction)
-    else:
-        st.error(fish_prediction)
-
-st.divider()
-
-# ==============================
-# AUTOMATION
-# ==============================
-
-st.subheader("⚙️ Automation System")
-
-a1, a2, a3, a4 = st.columns(4)
-
-a1.write(f"Air Pump: {devices['air_pump']}")
-a2.write(f"Water Pump: {devices['water_pump']}")
-a3.write(f"Cooling Fan: {devices['cooling_fan']}")
-a4.write(f"Grow Light: {devices['grow_light']}")
-
-st.divider()
-
-# ==============================
+# =========================
 # ALERTS
-# ==============================
+# =========================
+st.divider()
+st.subheader("🚨 Alerts")
 
-st.subheader("🚨 Smart Alerts")
+alerts = []
+
+if oxygen < 5:
+    alerts.append("Low Oxygen")
+if water_temp > 30:
+    alerts.append("High Temperature")
+if ph < 6 or ph > 8:
+    alerts.append("pH Out of Range")
+if humidity < 40:
+    alerts.append("Low Humidity")
 
 if len(alerts) == 0:
-    st.success("System Stable - No Alerts")
+    st.success("System Stable")
 else:
     for a in alerts:
         st.warning("⚠️ " + a)
 
+# =========================
+# MANUAL CONTROL
+# =========================
 st.divider()
+st.subheader("🎮 Manual Control")
 
-# ==============================
-# AI INSIGHTS
-# ==============================
+col1, col2 = st.columns(2)
 
-st.subheader("🧠 AI Insights")
+with col1:
+    st.write("Air Pump")
 
-if plant_prediction == "Healthy" and fish_prediction == "Healthy":
-    st.success("System is operating at optimal efficiency")
+    if st.button("🔵 ON", key="pump_on"):
+        send_to_blynk("v10", 1)
 
-if data["oxygen"] < 5:
-    st.warning("Low oxygen may reduce fish growth")
+    if st.button("⚪ OFF", key="pump_off"):
+        send_to_blynk("v10", 0)
 
-if data["water_temp"] > 30:
-    st.warning("High temperature affects system stability")
+with col2:
+    st.write("Fan")
 
+    if st.button("🟢 ON", key="fan_on"):
+        send_to_blynk("v11", 1)
+
+    if st.button("⚪ OFF", key="fan_off"):
+        send_to_blynk("v11", 0)
+
+# =========================
+# CHARTS
+# =========================
 st.divider()
+st.subheader("📊 Live Trends")
 
-# ==============================
-# RECOMMENDATIONS
-# ==============================
+st.line_chart(df.set_index("time")[["water_temp", "ph", "oxygen"]])
 
-st.subheader("💡 Recommendations")
+# =========================
+# =========================
+# 🧠 AI ANOMALY DETECTION
+# =========================
+def detect_anomaly(values):
+    if len(values) < 5:
+        return False
 
-if data["oxygen"] < 5:
-    st.info("Turn ON Air Pump immediately")
+    mean = np.mean(values)
+    std = np.std(values)
 
-if data["ph"] < 6:
-    st.info("Increase pH level")
-elif data["ph"] > 8:
-    st.info("Decrease pH level")
+    latest = values[-1]
 
-if data["water_temp"] > 30:
-    st.info("Activate cooling system")
+    if std == 0:
+        return False
 
-st.divider()
+    z_score = (latest - mean) / std
 
-# ==============================
-# ANALYTICS
-# ==============================
-
-st.subheader("📊 Analytics")
-
-history = get_data()
-
-df = pd.DataFrame(history, columns=[
-    "ID",
-    "Water Temp",
-    "Air Temp",
-    "Humidity",
-    "pH",
-    "Oxygen",
-    "Water Level"
-])
-
-st.line_chart(df[["Water Temp", "Oxygen", "pH"]])
+    return abs(z_score) > 2
 
 st.divider()
+st.subheader("🧠 AI Anomaly Detection")
 
-# ==============================
-# SYSTEM SUMMARY
-# ==============================
+oxygen_list = [x["oxygen"] for x in st.session_state.history]
+temp_list = [x["water_temp"] for x in st.session_state.history]
+ph_list = [x["ph"] for x in st.session_state.history]
 
-st.subheader("📄 System Summary")
+oxygen_anomaly = detect_anomaly(oxygen_list)
+temp_anomaly = detect_anomaly(temp_list)
+ph_anomaly = detect_anomaly(ph_list)
 
-summary = {
-    "Plant Status": plant_prediction,
-    "Fish Status": fish_prediction,
-    "System Score": score,
-    "Alerts": len(alerts)
-}
+if oxygen_anomaly:
+    st.error("⚠️ Oxygen behavior is abnormal!")
 
-st.json(summary)
+if temp_anomaly:
+    st.error("⚠️ Water temperature trend is unstable!")
 
-st.divider()
+if ph_anomaly:
+    st.error("⚠️ pH values showing unusual pattern!")
 
-# ==============================
-# PDF REPORT
-# ==============================
+if not oxygen_anomaly and not temp_anomaly and not ph_anomaly:
+    st.success("🟢 System behavior is normal")
 
-st.subheader("📄 Report Generator")
-
-if st.button("Generate PDF Report"):
-    file = generate_pdf(
-        data=data,
-        plant_status=plant_prediction,
-        fish_status=fish_prediction,
-        alerts=alerts
-    )
-
-    with open(file, "rb") as f:
-        st.download_button(
-            "⬇️ Download Report",
-            f,
-            file_name="aquaponics_report.pdf",
-            mime="application/pdf"
-        )
+# =========================
+# FOOTER
+# =========================
+st.caption("🔄 Smart IoT + AI + Blynk + Database System")
