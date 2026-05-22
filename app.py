@@ -3,21 +3,32 @@ import requests
 import pandas as pd
 import datetime
 import numpy as np
-
 from streamlit_autorefresh import st_autorefresh
 from db import insert_data
 
 # =========================
-# BLYNK CONFIG
+# CONFIG
 # =========================
-BLYNK_AUTH = "05GthB1qrQcqSaToJwwYyruodxK-_WdV" \
-""
+BLYNK_AUTH = "05GthB1qrQcqSaToJwwYyruodxK-_WdV"
 
-# =========================
-# PAGE CONFIG
-# =========================
 st.set_page_config(page_title="Smart Aquaponics Dashboard", layout="wide")
-st.title("🌱 Smart Aquaponics AI Dashboard")
+
+st.markdown("""
+<style>
+.main {
+    background-color: #0e1117;
+    color: white;
+}
+.stMetric {
+    background-color: #1c1f26;
+    padding: 10px;
+    border-radius: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("# 🌱 Smart Aquaponics System")
+st.markdown("### Real-Time IoT + AI Monitoring Dashboard")
 
 # =========================
 # AUTO REFRESH
@@ -25,7 +36,7 @@ st.title("🌱 Smart Aquaponics AI Dashboard")
 st_autorefresh(interval=3000, key="refresh")
 
 # =========================
-# SAFE BLYNK GET
+# FUNCTIONS
 # =========================
 def get_blynk(pin):
     url = f"https://blynk.cloud/external/api/get?token={BLYNK_AUTH}&{pin}"
@@ -35,9 +46,7 @@ def get_blynk(pin):
     except:
         return 0.0
 
-# =========================
-# SEND TO BLYNK
-# =========================
+
 def send_to_blynk(pin, value):
     url = f"https://blynk.cloud/external/api/update?token={BLYNK_AUTH}&{pin}={value}"
     try:
@@ -69,7 +78,7 @@ insert_data((
 ))
 
 # =========================
-# SESSION HISTORY
+# HISTORY
 # =========================
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -85,30 +94,39 @@ st.session_state.history.append({
 })
 
 st.session_state.history = st.session_state.history[-30:]
-
 df = pd.DataFrame(st.session_state.history)
 
 # =========================
-# SENSOR DISPLAY
+# KPI CARDS
 # =========================
-st.subheader("📡 Live Sensors")
+st.markdown("## 📡 Live Sensors")
 
 col1, col2, col3 = st.columns(3)
-
-col1.metric("🌡 Water Temp", water_temp)
+col1.metric("🌡 Water Temp", f"{water_temp} °C")
 col2.metric("🧪 pH", ph)
 col3.metric("🫧 Oxygen", oxygen)
 
 col4, col5, col6 = st.columns(3)
-
 col4.metric("💧 Humidity", humidity)
 col5.metric("🌬 Air Temp", air_temp)
 col6.metric("🚰 Water Level", water_level)
 
 # =========================
+# STATUS
+# =========================
+st.markdown("## 📊 System Status")
+
+if oxygen < 5:
+    st.error("🔴 Oxygen Critical")
+elif oxygen < 6:
+    st.warning("🟡 Oxygen Low")
+else:
+    st.success("🟢 Oxygen Normal")
+
+# =========================
 # HEALTH SCORE
 # =========================
-st.divider()
+st.markdown("## 🤖 Health Score")
 
 score = 100
 
@@ -119,21 +137,30 @@ if water_temp > 30:
 if ph < 6 or ph > 8:
     score -= 20
 
-st.subheader("🤖 System Health")
-st.metric("💚 Health Score", score)
+st.metric("💚 System Health", score)
 
-if score > 80:
-    st.success("🟢 System Healthy")
-elif score > 50:
-    st.warning("🟡 Warning State")
-else:
-    st.error("🔴 Critical State")
+# =========================
+# EFFICIENCY SCORE
+# =========================
+st.markdown("## ⚡ Efficiency")
+
+efficiency = 100
+
+if oxygen < 5:
+    efficiency -= 30
+if water_temp > 30:
+    efficiency -= 20
+if ph < 6 or ph > 8:
+    efficiency -= 20
+if humidity < 40:
+    efficiency -= 10
+
+st.metric("⚡ Efficiency Score", f"{efficiency}%")
 
 # =========================
 # ALERTS
 # =========================
-st.divider()
-st.subheader("🚨 Alerts")
+st.markdown("## 🚨 Alerts")
 
 alerts = []
 
@@ -151,167 +178,88 @@ if len(alerts) == 0:
 else:
     for a in alerts:
         st.warning("⚠️ " + a)
-# =========================
-# AUTO CONTROL SYSTEM
-# =========================
-st.divider()
 
-st.subheader("🤖 Automatic Control System")
+# =========================
+# AUTO CONTROL
+# =========================
+st.markdown("## 🤖 Auto Control")
 
-# حالات التشغيل
 pump_status = "OFF"
 fan_status = "OFF"
 
-# =====================
-# AUTO AIR PUMP
-# =====================
 if oxygen < 5:
     send_to_blynk("v10", 1)
     pump_status = "ON"
 else:
     send_to_blynk("v10", 0)
 
-# =====================
-# AUTO FAN
-# =====================
 if water_temp > 30:
     send_to_blynk("v11", 1)
     fan_status = "ON"
 else:
     send_to_blynk("v11", 0)
 
-# =====================
-# DISPLAY STATUS
-# =====================
 col1, col2 = st.columns(2)
-
 col1.metric("🫧 Air Pump", pump_status)
-col2.metric("🌬 Cooling Fan", fan_status)
-
-# =====================
-# STATUS MESSAGE
-# =====================
-if pump_status == "ON" or fan_status == "ON":
-    st.warning("⚠️ Automatic Protection Activated")
-else:
-    st.success("✅ System Running Normally")
+col2.metric("🌬 Fan", fan_status)
 
 # =========================
 # MANUAL CONTROL
 # =========================
-st.divider()
-st.subheader("🎮 Manual Control")
+st.markdown("## 🎮 Manual Control")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.write("Air Pump")
-
-    if st.button("🔵 ON", key="pump_on"):
+    if st.button("Pump ON", key="p_on"):
         send_to_blynk("v10", 1)
-
-    if st.button("⚪ OFF", key="pump_off"):
+    if st.button("Pump OFF", key="p_off"):
         send_to_blynk("v10", 0)
 
 with col2:
-    st.write("Fan")
-
-    if st.button("🟢 ON", key="fan_on"):
+    if st.button("Fan ON", key="f_on"):
         send_to_blynk("v11", 1)
-
-    if st.button("⚪ OFF", key="fan_off"):
+    if st.button("Fan OFF", key="f_off"):
         send_to_blynk("v11", 0)
 
 # =========================
 # CHARTS
 # =========================
-st.divider()
-st.subheader("📊 Live Trends")
-
+st.markdown("## 📈 Live Trends")
 st.line_chart(df.set_index("time")[["water_temp", "ph", "oxygen"]])
 
 # =========================
+# AI ANOMALY DETECTION
 # =========================
-# 🧠 AI ANOMALY DETECTION
-# =========================
+st.markdown("## 🧠 AI Detection")
+
 def detect_anomaly(values):
     if len(values) < 5:
         return False
-
     mean = np.mean(values)
     std = np.std(values)
-
-    latest = values[-1]
-
     if std == 0:
         return False
-
-    z_score = (latest - mean) / std
-
-    return abs(z_score) > 2
-
-st.divider()
-st.subheader("🧠 AI Anomaly Detection")
+    return abs(values[-1] - mean) / std > 2
 
 oxygen_list = [x["oxygen"] for x in st.session_state.history]
 temp_list = [x["water_temp"] for x in st.session_state.history]
 ph_list = [x["ph"] for x in st.session_state.history]
 
-oxygen_anomaly = detect_anomaly(oxygen_list)
-temp_anomaly = detect_anomaly(temp_list)
-ph_anomaly = detect_anomaly(ph_list)
+if detect_anomaly(oxygen_list):
+    st.error("Oxygen anomaly detected")
 
-if oxygen_anomaly:
-    st.error("⚠️ Oxygen behavior is abnormal!")
+if detect_anomaly(temp_list):
+    st.error("Temperature anomaly detected")
 
-if temp_anomaly:
-    st.error("⚠️ Water temperature trend is unstable!")
+if detect_anomaly(ph_list):
+    st.error("pH anomaly detected")
 
-if ph_anomaly:
-    st.error("⚠️ pH values showing unusual pattern!")
+if not (detect_anomaly(oxygen_list) or detect_anomaly(temp_list) or detect_anomaly(ph_list)):
+    st.success("System Normal")
 
-if not oxygen_anomaly and not temp_anomaly and not ph_anomaly:
-    st.success("🟢 System behavior is normal")
-# =========================
-# 🧠 SMART RECOMMENDATIONS
-# =========================
-st.divider()
-
-st.subheader("🧠 Smart Recommendations")
-
-recommendations = []
-
-# Oxygen
-if oxygen < 5:
-    recommendations.append("🫧 Oxygen is low → Activate Air Pump")
-
-# Temperature
-if water_temp > 30:
-    recommendations.append("🌡 High water temperature → Start Cooling System")
-
-# pH
-if ph < 6:
-    recommendations.append("🧪 pH is acidic → Add pH Up solution")
-
-elif ph > 8:
-    recommendations.append("🧪 pH is high → Add pH Down solution")
-
-# Humidity
-if humidity < 40:
-    recommendations.append("💧 Humidity is low → Increase moisture around plants")
-
-# Water Level
-if water_level < 40:
-    recommendations.append("🚰 Water level is low → Refill water tank")
-
-# Display
-if len(recommendations) == 0:
-    st.success("✅ No recommendations needed")
-
-else:
-    for rec in recommendations:
-        st.info(rec)
 # =========================
 # FOOTER
 # =========================
-st.caption("🔄 Smart IoT + AI + Blynk + Database System")
+st.markdown("---")
+st.caption("Smart IoT + AI + Automation System")
