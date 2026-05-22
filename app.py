@@ -10,7 +10,8 @@ from db import insert_data
 # =========================
 # BLYNK CONFIG
 # =========================
-BLYNK_AUTH = "05GthB1qrQcqSaToJwwYyruodxK-_WdV"
+BLYNK_AUTH = "05GthB1qrQcqSaToJwwYyruodxK-_WdV" \
+""
 
 # =========================
 # PAGE CONFIG
@@ -150,6 +151,50 @@ if len(alerts) == 0:
 else:
     for a in alerts:
         st.warning("⚠️ " + a)
+# =========================
+# AUTO CONTROL SYSTEM
+# =========================
+st.divider()
+
+st.subheader("🤖 Automatic Control System")
+
+# حالات التشغيل
+pump_status = "OFF"
+fan_status = "OFF"
+
+# =====================
+# AUTO AIR PUMP
+# =====================
+if oxygen < 5:
+    send_to_blynk("v10", 1)
+    pump_status = "ON"
+else:
+    send_to_blynk("v10", 0)
+
+# =====================
+# AUTO FAN
+# =====================
+if water_temp > 30:
+    send_to_blynk("v11", 1)
+    fan_status = "ON"
+else:
+    send_to_blynk("v11", 0)
+
+# =====================
+# DISPLAY STATUS
+# =====================
+col1, col2 = st.columns(2)
+
+col1.metric("🫧 Air Pump", pump_status)
+col2.metric("🌬 Cooling Fan", fan_status)
+
+# =====================
+# STATUS MESSAGE
+# =====================
+if pump_status == "ON" or fan_status == "ON":
+    st.warning("⚠️ Automatic Protection Activated")
+else:
+    st.success("✅ System Running Normally")
 
 # =========================
 # MANUAL CONTROL
@@ -227,7 +272,45 @@ if ph_anomaly:
 
 if not oxygen_anomaly and not temp_anomaly and not ph_anomaly:
     st.success("🟢 System behavior is normal")
+# =========================
+# 🧠 SMART RECOMMENDATIONS
+# =========================
+st.divider()
 
+st.subheader("🧠 Smart Recommendations")
+
+recommendations = []
+
+# Oxygen
+if oxygen < 5:
+    recommendations.append("🫧 Oxygen is low → Activate Air Pump")
+
+# Temperature
+if water_temp > 30:
+    recommendations.append("🌡 High water temperature → Start Cooling System")
+
+# pH
+if ph < 6:
+    recommendations.append("🧪 pH is acidic → Add pH Up solution")
+
+elif ph > 8:
+    recommendations.append("🧪 pH is high → Add pH Down solution")
+
+# Humidity
+if humidity < 40:
+    recommendations.append("💧 Humidity is low → Increase moisture around plants")
+
+# Water Level
+if water_level < 40:
+    recommendations.append("🚰 Water level is low → Refill water tank")
+
+# Display
+if len(recommendations) == 0:
+    st.success("✅ No recommendations needed")
+
+else:
+    for rec in recommendations:
+        st.info(rec)
 # =========================
 # FOOTER
 # =========================
