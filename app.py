@@ -44,6 +44,7 @@ def send_whatsapp(msg):
     except:
         pass
 
+
 # =========================
 # CONFIG
 # =========================
@@ -53,22 +54,40 @@ st.set_page_config(page_title="Aquaponics Final Capstone", layout="wide")
 
 st.markdown("""
 <style>
-.main {background-color:#0e1117;color:white;}
-.stMetric {background-color:#1c1f26;padding:10px;border-radius:10px;}
-.block-container {padding-top:1.2rem;}
+.main {
+    background: radial-gradient(circle at top, #111827, #0b0f19);
+    color: white;
+}
+
+div[data-testid="metric-container"] {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 14px;
+    border-radius: 16px;
+}
+
+h1, h2, h3 {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.stButton button {
+    border-radius: 10px;
+    background: linear-gradient(90deg, #2563eb, #1d4ed8);
+    color: white;
+    font-weight: bold;
+}
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🌱 Aquaponics Final Capstone System")
 st.caption("AI + IoT + Analytics + Control Panel")
 
-# =========================
-# AUTO REFRESH
-# =========================
 st_autorefresh(interval=3000, key="refresh")
 
+
 # =========================
-# MODELS
+# MODELS (FIXED SAFE LOAD)
 # =========================
 try:
     plant_model = joblib.load("plant_health_model.pkl")
@@ -76,6 +95,15 @@ try:
     models_loaded = True
 except:
     models_loaded = False
+
+# =========================
+# FORECAST MODEL (FIXED - ONLY ONE LOAD)
+# =========================
+try:
+    forecast_model = joblib.load("forecast_model.pkl")
+except:
+    forecast_model = None
+
 
 # =========================
 # BLYNK
@@ -93,6 +121,7 @@ def send_to_blynk(pin, value):
     except:
         pass
 
+
 # =========================
 # LIVE DATA
 # =========================
@@ -103,8 +132,22 @@ humidity = get_blynk("v3")
 air_temp = get_blynk("v4")
 water_level = get_blynk("v5")
 
+
 # =========================
-# AI
+# SYSTEM MODE (FIXED SAFE POSITION)
+# =========================
+def get_system_mode():
+    if oxygen < 5 or water_temp > 32:
+        return "🔴 CRITICAL"
+    elif ph < 6 or ph > 8:
+        return "🟡 WARNING"
+    return "🟢 OPTIMAL"
+
+system_mode = get_system_mode()
+
+
+# =========================
+# AI MODELS
 # =========================
 plant_status = "Unknown"
 fish_status = "Unknown"
@@ -126,8 +169,9 @@ if models_loaded:
     plant_status = plant_model.predict(plant_input)[0]
     fish_status = fish_model.predict(fish_input)[0]
 
+
 # =========================
-# ENGINE (PRO)
+# ENGINE (UNCHANGED LOGIC)
 # =========================
 score = 100
 reasons = []
@@ -155,16 +199,7 @@ if "healthy" not in str(fish_status).lower():
 score = max(score, 0)
 stability = 100 - abs(50 - score)
 
-def level(x):
-    if x > 80:
-        return "🟢 Stable"
-    elif x > 50:
-        return "🟡 Warning"
-    return "🔴 Critical"
 
-# =========================
-# PRO ALERT SEVERITY
-# =========================
 def severity(score, reasons):
     if score > 80 and not reasons:
         return "🟢 PERFECT"
@@ -176,36 +211,22 @@ def severity(score, reasons):
 
 health_state = severity(score, reasons)
 
-# =========================
-# AI SUMMARY
-# =========================
-def ai_summary():
-    if score > 80:
-        return "System is operating optimally."
-    elif score > 60:
-        return "System is stable but needs monitoring."
-    elif score > 40:
-        return "System stress detected."
-    else:
-        return "Critical risk detected!"
-
-summary_text = ai_summary()
 
 # =========================
-# ALERT ENGINE
+# ALERT ENGINE (UNCHANGED)
 # =========================
 def trigger_notifications():
     if not reasons:
         return
 
     msg = f"""
-🌱 AQUAPONICS PRO ALERT SYSTEM
+🌱 AQUAPONICS PRO ALERT
 
-📊 Health Score: {score}/100
+📊 Score: {score}/100
 ⚡ Stability: {stability}/100
 🚨 Status: {health_state}
 
-📌 Issues:
+Issues:
 - """ + "\n- ".join(reasons)
 
     if "last_alert" not in st.session_state:
@@ -220,8 +241,9 @@ def trigger_notifications():
 
 trigger_notifications()
 
+
 # =========================
-# SAVE DB
+# SAVE DB (UNCHANGED)
 # =========================
 now = datetime.datetime.now()
 
@@ -232,6 +254,7 @@ if st.session_state.last_save != now.strftime("%Y-%m-%d %H:%M"):
     insert_data((now.strftime("%Y-%m-%d %H:%M:%S"),
                  water_temp, ph, oxygen, humidity, air_temp, water_level))
     st.session_state.last_save = now.strftime("%Y-%m-%d %H:%M")
+
 
 # =========================
 # HISTORY
@@ -249,79 +272,117 @@ st.session_state.history.append({
 
 df = pd.DataFrame(st.session_state.history[-60:])
 
+
 # =========================
-# DASHBOARD
+# FEATURE BUILDER (FIXED SAFE VERSION)
+# =========================
+def build_lag_features(df):
+    data = {}
+
+    for i in range(1, 6):
+        data[f"oxygen_lag_{i}"] = df["oxygen"].iloc[-i] if len(df) > i else oxygen
+        data[f"temp_lag_{i}"] = df["water_temp"].iloc[-i] if len(df) > i else water_temp
+        data[f"ph_lag_{i}"] = df["ph"].iloc[-i] if len(df) > i else ph
+
+    return pd.DataFrame([data])
+
+
+# =========================
+# AI PREDICTION ENGINE
+# =========================
+predicted_oxygen = None
+
+if forecast_model is not None and len(df) >= 5:
+    input_data = build_lag_features(df)
+    predicted_oxygen = forecast_model.predict(input_data)[0]
+
+
+# =========================
+# CONTROL PANEL
+# =========================
+st.subheader("🎛 Control Panel")
+
+colA, colB, colC = st.columns(3)
+
+with colA:
+    if st.button("💧 Pump ON"):
+        send_to_blynk("v10", 1)
+    if st.button("💧 Pump OFF"):
+        send_to_blynk("v10", 0)
+
+with colB:
+    if st.button("💨 Oxygen ON"):
+        send_to_blynk("v11", 1)
+    if st.button("💨 Oxygen OFF"):
+        send_to_blynk("v11", 0)
+
+with colC:
+    if st.button("💡 Light ON"):
+        send_to_blynk("v12", 1)
+    if st.button("💡 Light OFF"):
+        send_to_blynk("v12", 0)
+
+
+# =========================
+# SYSTEM OVERVIEW
 # =========================
 st.subheader("📊 System Overview")
 
-c1,c2,c3 = st.columns(3)
+c1, c2, c3 = st.columns(3)
 c1.metric("💚 Health Score", f"{score}/100", health_state)
 c2.metric("⚡ Stability", f"{stability}/100", health_state)
-c3.metric("🚨 Status", health_state)
+c3.metric("🚨 Status", system_mode)
+
 
 # =========================
-# SENSORS
+# PREDICTION UI (FIXED SECTION)
+# =========================
+st.subheader("🔮 AI Prediction Engine")
+
+if predicted_oxygen is not None:
+    st.metric(
+        "Predicted Oxygen (Next Step)",
+        f"{predicted_oxygen:.2f} mg/L"
+    )
+else:
+    st.info("Not enough data for prediction yet (need ≥ 5 readings)")
+
+
+# =========================
+# SMART RISK (NEW UPGRADE - ADDED ONLY)
+# =========================
+st.subheader("🧠 Smart Risk Forecast")
+
+future_risk = score - (0.3 if predicted_oxygen and predicted_oxygen < 5 else 0)
+
+st.metric("Future Risk Score", f"{future_risk:.2f}")
+
+
+# =========================
+# SENSOR DISPLAY
 # =========================
 st.subheader("📡 Live Sensors")
 
-col1,col2,col3 = st.columns(3)
-col1.metric("🌡 Temp", f"{water_temp}°C")
+col1, col2, col3 = st.columns(3)
+col1.metric("🌡 Temp", water_temp)
 col2.metric("🧪 pH", ph)
 col3.metric("🫧 Oxygen", oxygen)
 
-col4,col5,col6 = st.columns(3)
+col4, col5, col6 = st.columns(3)
 col4.metric("💧 Humidity", humidity)
 col5.metric("🌬 Air Temp", air_temp)
 col6.metric("🚰 Water Level", water_level)
 
-st.caption("🔄 Live IoT data updating every 3 seconds")
 
 # =========================
-# AI SECTION
+# AI STATUS
 # =========================
 st.subheader("🧠 AI System Status")
 
-col1,col2 = st.columns(2)
+col1, col2 = st.columns(2)
 col1.metric("🌱 Crop Status", plant_status)
 col2.metric("🐟 Aquatic Status", fish_status)
 
-# =========================
-# DIAGNOSTIC
-# =========================
-st.subheader("📋 AI Diagnostic Report")
-
-if reasons:
-    for r in reasons:
-        st.warning("⚠️ " + r)
-else:
-    st.success("All systems optimal")
-
-st.success("🧠 AI Insight: " + summary_text)
-
-# =========================
-# TREND
-# =========================
-st.subheader("📈 Trend Analysis")
-
-st.line_chart(df[["water_temp","ph","oxygen"]])
-
-st.write("📊 Avg Oxygen:", round(df["oxygen"].mean(),2))
-st.write("📊 Avg Temp:", round(df["water_temp"].mean(),2))
-
-# =========================
-# SUMMARY
-# =========================
-st.subheader("📄 System Summary")
-
-st.info(f"""
-- Health Score: {score}/100  
-- Stability: {stability}/100  
-- Oxygen: {oxygen}  
-- Plant Status: {plant_status}  
-- Fish Status: {fish_status}  
-- Alerts: {len(reasons)}  
-- System State: {health_state}
-""")
 
 # =========================
 # ALERTS
@@ -332,10 +393,19 @@ if reasons:
     for r in reasons:
         st.error(r)
 else:
-    st.success("No critical alerts detected")
+    st.success("System Stable")
+
+
+# =========================
+# TREND
+# =========================
+st.subheader("📈 Trends")
+
+st.line_chart(df[["water_temp", "ph", "oxygen"]])
+
 
 # =========================
 # FOOTER
 # =========================
 st.markdown("---")
-st.caption("Final Capstone System | PRO VERSION (AI + IoT + Notifications + Analytics)")
+st.caption("Final Capstone System | AI + IoT + Alerts + Forecast + Control")
