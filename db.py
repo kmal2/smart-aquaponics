@@ -9,8 +9,19 @@ def insert_data(data):
 
         c.execute("""
         INSERT INTO sensor_data (
-            time, water_temp, ph, oxygen, humidity, air_temp, water_level
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            time,
+            water_temp,
+            ph,
+            oxygen,
+            humidity,
+            air_temp,
+            water_level,
+            ammonia,
+            nitrite,
+            nitrate,
+            flow_rate
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, data)
 
         conn.commit()

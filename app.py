@@ -80,11 +80,10 @@ h1, h2, h3 {
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🌱 Aquaponics Final Capstone System")
+st.title("🌱 Aquaponics AI System")
 st.caption("AI + IoT + Analytics + Control Panel")
 
-st_autorefresh(interval=3000, key="refresh")
-
+st_autorefresh(interval=10000, key="refresh")
 
 # =========================
 # MODELS (FIXED SAFE LOAD)
@@ -131,16 +130,36 @@ oxygen = get_blynk("v2")
 humidity = get_blynk("v3")
 air_temp = get_blynk("v4")
 water_level = get_blynk("v5")
+ammonia = get_blynk("v6")
+nitrite = get_blynk("v7")
+nitrate = get_blynk("v8")
+flow_rate = get_blynk("v9")
+pump_failure = False
 
+if flow_rate < 0.5:
+    pump_failure = True
 
+water_leak = False
+
+if water_level < 20:
+    water_leak = True
 # =========================
 # SYSTEM MODE (FIXED SAFE POSITION)
 # =========================
 def get_system_mode():
-    if oxygen < 5 or water_temp > 32:
+
+    if (
+        oxygen < 5
+        or water_temp > 32
+        or ammonia > 0.5
+        or nitrite > 1
+        or water_level < 20
+    ):
         return "🔴 CRITICAL"
+
     elif ph < 6 or ph > 8:
         return "🟡 WARNING"
+
     return "🟢 OPTIMAL"
 
 system_mode = get_system_mode()
@@ -187,7 +206,17 @@ if water_temp > 30:
 if ph < 6 or ph > 8:
     score -= 20
     reasons.append("pH imbalance")
+if ammonia > 0.5:
+    score -= 25
+    reasons.append("High ammonia level")
 
+if nitrite > 1:
+    score -= 20
+    reasons.append("High nitrite level")
+
+if flow_rate < 1:
+    score -= 15
+    reasons.append("Low water circulation")
 if "healthy" not in str(plant_status).lower():
     score -= 10
     reasons.append("Plant stress detected")
@@ -195,22 +224,26 @@ if "healthy" not in str(plant_status).lower():
 if "healthy" not in str(fish_status).lower():
     score -= 15
     reasons.append("Fish stress detected")
-
-score = max(score, 0)
-stability = 100 - abs(50 - score)
-
+if water_level < 20:
+    score -= 20
+    reasons.append("Critical water level drop")
+if nitrate > 150:
+    score -= 10
+    reasons.append("High nitrate accumulation")
 
 def severity(score, reasons):
-    if score > 80 and not reasons:
+    if score >= 90:
         return "🟢 PERFECT"
-    elif score > 70:
+    elif score >= 70:
         return "🟡 GOOD"
-    elif score > 50:
+    elif score >= 50:
         return "🟠 WARNING"
     return "🔴 CRITICAL"
 
-health_state = severity(score, reasons)
 
+score = max(score, 0)
+stability = min(100, score)
+health_state = severity(score, reasons)
 
 # =========================
 # ALERT ENGINE (UNCHANGED)
@@ -251,8 +284,19 @@ if "last_save" not in st.session_state:
     st.session_state.last_save = ""
 
 if st.session_state.last_save != now.strftime("%Y-%m-%d %H:%M"):
-    insert_data((now.strftime("%Y-%m-%d %H:%M:%S"),
-                 water_temp, ph, oxygen, humidity, air_temp, water_level))
+    insert_data((
+    now.strftime("%Y-%m-%d %H:%M:%S"),
+    water_temp,
+    ph,
+    oxygen,
+    humidity,
+    air_temp,
+    water_level,
+    ammonia,
+    nitrite,
+    nitrate,
+    flow_rate
+))
     st.session_state.last_save = now.strftime("%Y-%m-%d %H:%M")
 
 
@@ -267,11 +311,28 @@ st.session_state.history.append({
     "water_temp": water_temp,
     "ph": ph,
     "oxygen": oxygen,
-    "humidity": humidity
+    "humidity": humidity,
+    "water_level": water_level,
+    "ammonia": ammonia,
+    "nitrite": nitrite,
+    "nitrate": nitrate,
+    "flow_rate": flow_rate,
+    "score": score,
+    "stability": stability
 })
 
+# Keep only last 500 records
+if len(st.session_state.history) > 500:
+    st.session_state.history = st.session_state.history[-500:]
 df = pd.DataFrame(st.session_state.history[-60:])
+oxygen_trend = "Stable"
 
+if len(df) > 10:
+    if df["oxygen"].iloc[-1] > df["oxygen"].iloc[-10]:
+        oxygen_trend = "Increasing"
+
+    elif df["oxygen"].iloc[-1] < df["oxygen"].iloc[-10]:
+        oxygen_trend = "Decreasing"
 
 # =========================
 # FEATURE BUILDER (FIXED SAFE VERSION)
@@ -295,7 +356,6 @@ predicted_oxygen = None
 if forecast_model is not None and len(df) >= 5:
     input_data = build_lag_features(df)
     predicted_oxygen = forecast_model.predict(input_data)[0]
-
 
 # =========================
 # CONTROL PANEL
@@ -322,7 +382,19 @@ with colC:
     if st.button("💡 Light OFF"):
         send_to_blynk("v12", 0)
 
+st.subheader("🤖 Auto Control")
 
+auto_mode = st.toggle("Enable Smart Automation")
+if auto_mode:
+
+    if oxygen < 5:
+        send_to_blynk("v11", 1)
+
+    if water_temp > 30:
+        send_to_blynk("v12", 0)
+
+    if flow_rate < 1:
+        send_to_blynk("v10", 1)
 # =========================
 # SYSTEM OVERVIEW
 # =========================
@@ -332,8 +404,37 @@ c1, c2, c3 = st.columns(3)
 c1.metric("💚 Health Score", f"{score}/100", health_state)
 c2.metric("⚡ Stability", f"{stability}/100", health_state)
 c3.metric("🚨 Status", system_mode)
+aquaponics_index = 100
 
+if oxygen < 5:
+    aquaponics_index -= 25
 
+if ph < 6.5 or ph > 7.5:
+    aquaponics_index -= 20
+
+if ammonia > 0.5:
+    aquaponics_index -= 25
+
+if nitrite > 1:
+    aquaponics_index -= 15
+
+if water_temp < 20 or water_temp > 30:
+    aquaponics_index -= 15
+
+aquaponics_index = max(0, aquaponics_index)
+aquaponics_index = max(
+    0,
+    min(100, aquaponics_index)
+)
+
+st.metric(
+    "🌱 Aquaponics Health Index",
+    f"{aquaponics_index:.1f}/100"
+)
+st.metric(
+    "🐟 Fish Survival Probability",
+    f"{max(0, score):.0f}%"
+)
 # =========================
 # PREDICTION UI (FIXED SECTION)
 # =========================
@@ -353,16 +454,127 @@ else:
 # =========================
 st.subheader("🧠 Smart Risk Forecast")
 
-future_risk = score - (0.3 if predicted_oxygen and predicted_oxygen < 5 else 0)
+future_risk = score
 
+if predicted_oxygen is not None:
+    if predicted_oxygen < 5:
+        future_risk -= 20
+
+future_risk = max(0, future_risk)
+explanation = []
+
+if predicted_oxygen is not None:
+    if predicted_oxygen < 5:
+        explanation.append(
+            "Oxygen expected to drop below safe level."
+        )
+
+if ammonia > 0.5:
+    explanation.append(
+        "Ammonia accumulation detected."
+    )
+
+if flow_rate < 1:
+    explanation.append(
+        "Water circulation is weak."
+    )
 st.metric("Future Risk Score", f"{future_risk:.2f}")
+if explanation:
+    st.warning(" | ".join(explanation))
+else:
+    st.success("AI sees no future risks.")
+# =========================
+# Explainable AI
+# =========================
+st.subheader("🧠 Explainable AI")
 
+ai_comment = []
 
+if oxygen < 5:
+    ai_comment.append(
+        "Oxygen concentration is below safe fish threshold."
+    )
+
+if ammonia > 0.5:
+    ai_comment.append(
+        "Ammonia accumulation may stress fish."
+    )
+
+if flow_rate < 1:
+    ai_comment.append(
+        "Poor water circulation detected."
+    )
+
+if predicted_oxygen is not None:
+    if predicted_oxygen < oxygen:
+        ai_comment.append(
+            "Forecast model predicts oxygen decline."
+        )
+
+for comment in ai_comment:
+    st.info(comment)
+# =========================
+# AI Recommendations
+# =========================
+st.subheader("🤖 AI Recommendations")
+
+if oxygen < 5:
+    st.warning(
+        "Turn ON aerator immediately."
+    )
+
+if ammonia > 0.5:
+    st.warning(
+        "Reduce feeding and perform water exchange."
+    )
+
+if ph < 6:
+    st.warning(
+        "Increase pH gradually."
+    )
+
+if ph > 8:
+    st.warning(
+        "Decrease pH gradually."
+    )
+
+if not reasons:
+    st.success(
+        "System operating within optimal range."
+    )
+# =========================
+#Sensor Status Monitor
+# =========================
+st.subheader("🔌 Sensor Status")
+
+sensor_status = {
+    "Water Temp": water_temp,
+    "pH": ph,
+    "Oxygen": oxygen,
+    "Water Level": water_level,
+    "Ammonia": ammonia,
+    "Nitrite": nitrite,
+    "Nitrate": nitrate
+}
+
+for name, value in sensor_status.items():
+
+    if value <= 0 and name in ["Water Temp", "pH", "Oxygen"]:
+        st.error(f"{name}: Offline")
+    else:
+        st.success(f"{name}: Online")
 # =========================
 # SENSOR DISPLAY
 # =========================
 st.subheader("📡 Live Sensors")
+st.subheader("🧪 Water Quality")
 
+q1, q2, q3, q4 = st.columns(4)
+
+q1.metric("NH3 Ammonia", ammonia)
+q2.metric("Nitrite", nitrite)
+q3.metric("Nitrate", nitrate)
+q4.metric("Flow Rate", flow_rate)
 col1, col2, col3 = st.columns(3)
 col1.metric("🌡 Temp", water_temp)
 col2.metric("🧪 pH", ph)
@@ -395,15 +607,38 @@ if reasons:
 else:
     st.success("System Stable")
 
-
+if pump_failure:
+    st.error("🚨 Pump Failure Suspected")
+if water_leak:
+    st.error("🚨 Possible Water Leak")
 # =========================
 # TREND
 # =========================
 st.subheader("📈 Trends")
 
 st.line_chart(df[["water_temp", "ph", "oxygen"]])
+if all(col in df.columns for col in ["ammonia", "nitrite", "nitrate"]):
 
+    st.subheader("🧪 Water Chemistry Trends")
 
+    st.line_chart(
+        df[
+            [
+                "ammonia",
+                "nitrite",
+                "nitrate"
+            ]
+        ]
+    )
+st.metric(
+    "Oxygen Trend",
+    oxygen_trend
+)
+if "score" in df.columns:
+
+    st.subheader("💚 System Health Trend")
+
+    st.line_chart(df[["score"]])
 # =========================
 # FOOTER
 # =========================
