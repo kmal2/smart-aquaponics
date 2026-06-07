@@ -12,7 +12,7 @@ from db import insert_data
 # =========================
 # NOTIFICATIONS (NEW)
 # =========================
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8976549075:AAEXwqK80xq4rxxeYUA8bNRYmSQ6_GUdNJ8")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 TWILIO_SID = os.getenv("TWILIO_SID", "")
@@ -48,7 +48,7 @@ def send_whatsapp(msg):
 # =========================
 # CONFIG
 # =========================
-BLYNK_AUTH = os.getenv("BLYNK_AUTH", "YOUR_TOKEN")
+BLYNK_AUTH = os.getenv("BLYNK_AUTH", "05GthB1qrQcqSaToJwwYyruodxK-_WdV")
 
 st.set_page_config(page_title="Aquaponics Final Capstone", layout="wide")
 
@@ -83,7 +83,32 @@ h1, h2, h3 {
 st.title("🌱 Aquaponics AI System")
 st.caption("AI + IoT + Analytics + Control Panel")
 
-st_autorefresh(interval=10000, key="refresh")
+# imports
+import streamlit as st
+import shared_data
+import time
+from db_migration import migrate_db
+
+migrate_db()
+# cache (هنا)
+@st.cache_data(ttl=1)
+def get_data():
+    return shared_data.DATA
+
+# UI
+st_autorefresh(interval=5000)
+data = get_data()
+col1, col2, col3 = st.columns(3)
+
+col1.metric("🌡 Water Temp", data["water_temp"])
+col2.metric("🧪 pH", data["ph"])
+col3.metric("🫧 Oxygen", data["oxygen"])
+
+col1.metric("💧 Humidity", data["humidity"])
+col2.metric("🌬 Air Temp", data["air_temp"])
+col3.metric("🚰 Water Level", data["water_level"])
+
+st.caption(f"Last update: {time.ctime(data['timestamp'])}")
 
 # =========================
 # MODELS (FIXED SAFE LOAD)
