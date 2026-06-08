@@ -5,18 +5,17 @@ import joblib
 # Load dataset
 df = pd.read_csv("data/fish_health_dataset.csv")
 
-# Features
-X = df[["water_temp", "ph", "oxygen"]]
+# 🔥 تعديل: إضافة الأمونيا لتتطابق تماماً مع مدخلات واجهة ستريم ليت
+X = df[["water_temp", "ph", "oxygen", "ammonia"]]
 
 # Target
 y = df["status"]
 
 # Train model
 model = DecisionTreeClassifier()
-
 model.fit(X, y)
 
 # Save model
 joblib.dump(model, "fish_health_model.pkl")
 
-print("Fish Health Model Trained Successfully")
+print("🏆 Fish Health Model (with Ammonia) Trained Successfully!")
