@@ -1,13 +1,13 @@
 {
-    "water_temp": 22.85,
-    "ph": 6.53,
-    "oxygen": 4.39,
-    "humidity": 47.51,
-    "air_temp": 24.42,
-    "water_level": 57.59,
-    "ammonia": 0.18,
-    "nitrite": 0.025,
-    "nitrate": 14.5,
-    "flow_rate": 0.69,
-    "timestamp": 1781022428.1882174
+    "water_temp": 27.27,
+    "ph": 6.61,
+    "oxygen": 5.24,
+    "humidity": 71.52,
+    "air_temp": 24.05,
+    "water_level": 67.36,
+    "ammonia": 0.24,
+    "nitrite": 0.029,
+    "nitrate": 12.2,
+    "flow_rate": 0.41,
+    "timestamp": 1781080594.364694
 }

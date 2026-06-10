@@ -15,7 +15,16 @@ try:
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib import colors
     REPORTLAB_AVAILABLE = True
-except ImportError:
+except (ImportError, ModuleNotFoundError):
+    letter = None
+    SimpleDocTemplate = None
+    Paragraph = None
+    Spacer = None
+    Table = None
+    TableStyle = None
+    getSampleStyleSheet = None
+    ParagraphStyle = None
+    colors = None
     REPORTLAB_AVAILABLE = False
 
 try:
