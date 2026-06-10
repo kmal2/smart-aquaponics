@@ -63,10 +63,9 @@ def send_to_blynk_forced(pin, value):
             
     return False
 
-
 def check_and_send_telegram_report(data_dict):
     """
-    إرسال تقارير هندسية متكاملة لـ Telegram مع تفعيل حماية صارمة لمنع حظر البوت
+    إرسال تقارير هندسية تملك مصفوفة الأرقام بالكامل والتفاصيل الحيوية لهاتفك
     """
     global last_telegram_time, last_alert_status
     
@@ -74,56 +73,56 @@ def check_and_send_telegram_report(data_dict):
     actions = []
     
     if data_dict["oxygen"] < 5.5: 
-        reasons.append(f"❌ انخفاض حرج للأكسجين المذاب: {data_dict['oxygen']} mg/L")
-        actions.append("⚡ [إجراء فوري]: تشغيل مضخة التهوية الاحتياطية بكامل طاقتها.")
+        reasons.append(f"❌ انخفاض الأكسجين: <b>{data_dict['oxygen']:.2f} mg/L</b> (الحد الآمن &gt; 5.5)")
+        actions.append("⚡ [تدخل فوري]: تشغيل مضخة التهوية الاحتياطية (Aerator Pump 2).")
         
     if data_dict["water_temp"] > 28.5: 
-        reasons.append(f"❌ ارتفاع حرارة المياه: {data_dict['water_temp']}°C")
-        actions.append("⚡ [إجراء فوري]: تفعيل نظام التبريد الجبري (Chiller System).")
+        reasons.append(f"❌ ارتفاع حرارة المياه: <b>{data_dict['water_temp']:.2f} °C</b> (الحد الآمن &lt; 28.5)")
+        actions.append("⚡ [تدخل فوري]: تفعيل المبرد الجبري (Chiller System) ومراوح التبريد.")
     elif data_dict["water_temp"] < 23.0:
-        reasons.append(f"❌ انخفاض حرارة المياه: {data_dict['water_temp']}°C")
-        actions.append("⚡ [إجراء فوري]: تشغيل السخانات الرقمية المتكاملة.")
+        reasons.append(f"❌ انخفاض حرارة المياه: <b>{data_dict['water_temp']:.2f} °C</b> (الحد الآمن &gt; 23.0)")
+        actions.append("⚡ [تدخل فوري]: تنشيط السخانات الرقمية (Heaters Grid).")
 
-    if data_dict["ph"] < 6.5: 
-        reasons.append(f"❌ حموضة مرتفعة بالماء pH: {data_dict['ph']}")
-        actions.append("⚡ [إجراء فوري]: إضافة منظم قلوي (Alkaline Buffer) تدريجياً.")
-    elif data_dict["ph"] > 7.9:
-        reasons.append(f"❌ قلوية زائدة بالماء pH: {data_dict['ph']}")
-        actions.append("⚡ [إجراء فوري]: حقن كمية مقننة من حامض الفوسفوريك المخفف.")
+    if data_dict["ammonia"] > 0.3: 
+        reasons.append(f"❌ سمية أمونيا حادة: <b>{data_dict['ammonia']:.2f} ppm</b> (الحد الآمن &lt; 0.25)")
+        actions.append("⚡ [تدخل فوري]: حظر حاسبة التغذية مؤقتاً لتجنب زيادة التحلل.")
 
     if data_dict["water_level"] < 40.0:
-        reasons.append(f"❌ انخفاض منسوب المياه بالحوض: {data_dict['water_level']}%")
-        actions.append("⚡ [إجراء فوري]: فتح محبس التغذية الآلي لتعويض النقص.")
+        reasons.append(f"❌ انخفاض منسوب المياه: <b>{data_dict['water_level']:.2f} %</b> (خطر جفاف)")
+        actions.append("⚡ [تدخل فوري]: فتح محبس التغذية الإلكتروني (Solenoid Refill Valve).")
 
     current_time = time.time()
     
     if reasons:
         status_msg = "CRITICAL"
-        # 🛡️ فلتر مكافحة الحظر (Anti-Spam): لا يرسل إلا إذا مر دقيقة كاملة (60 ثانية) على الأقل على آخر رسالة
+        # فلتر مكافحة الحظر: يرسل التحديث التفصيلي الرقمي كل 60 ثانية لحمايتك
         if (current_time - last_telegram_time > 60):
             
+            # صياغة مصفوفة شاملة للأرقام الحالية في نص الرسالة ليراها المستخدم
             report_text = (
-                f"📋 <b><u>تقرير تشخيصي حي: نظام الاستزراع الذكي</u></b>\n\n"
+                f"📋 <b><u>تقرير القياس التشخيصي الموحد (Telemetry Run)</u></b>\n\n"
                 f"⏰ <b>توقيت الرصد:</b> {time.strftime('%H:%M:%S')}\n"
-                f"📊 <b>حالة المنظومة:</b> 🚨 وضع حرج (CRITICAL)\n\n"
-                f"🔍 <b>المشاكل المرصودة:</b>\n" + "\n".join(reasons) + "\n\n"
-                f"🛠️ <b>القرارات التشغيلية والتدخل الآلي:</b>\n" + "\n".join(actions) + "\n\n"
-                f"📌 <i>يرجى المتابعة والتحقق من شاشة التحكم الرئيسية للمشروع.</i>"
+                f"📊 <b>حالة النظام الكلية:</b> 🚨 وضع حرج (CRITICAL)\n\n"
+                f"📈 <b>مصفوفة الأرقام اللحظية للحساسات:</b>\n"
+                f"- حرارة المياه: {data_dict['water_temp']:.2f} °C\n"
+                f"- مستوى الـ pH: {data_dict['ph']:.2f}\n"
+                f"- الأكسجين المذاب: {data_dict['oxygen']:.2f} mg/L\n"
+                f"- منسوب المياه: {data_dict['water_level']:.2f} %\n"
+                f"- نسبة الأمونيا: {data_dict['ammonia']:.2f} ppm\n"
+                f"- نسبة النيترات: {data_dict['nitrate']:.2f} ppm\n\n"
+                f"🔍 <b>المشاكل المرصودة وأسبابها:</b>\n" + "\n".join(reasons) + "\n\n"
+                f"🛠️ <b>الأوامر الميدانية والتدخل المطلوب:</b>\n" + "\n".join(actions)
             )
             
             try:
                 telegram_url = "https://telegram.org"
                 res = requests.post(telegram_url, data={"chat_id": TELEGRAM_CHAT_ID, "text": report_text, "parse_mode": "HTML"}, timeout=4)
-                
-                # فحص حقيقي للتأكد من موافقة سيرفر تلغرام على التوصيل
                 if res.status_code == 200:
                     last_telegram_time = current_time
                     last_alert_status = status_msg
-                    print("📲 [TELEGRAM] Success! Diagnostic report delivered to your phone.")
-                else:
-                    print(f"⚠️ [TELEGRAM WARNING] Server received the request but blocked delivery (Rate Limit Active). Code: {res.status_code}")
+                    print("📲 [TELEGRAM] Detailed technical payload delivered successfully.")
             except Exception as e:
-                print("🚨 Telegram Exception:", e)
+                print("🚨 Telegram Error:", e)
     else:
         last_alert_status = "OK"
 
