@@ -482,7 +482,7 @@ with tab1:
             "Volumetric Ratio": [nitrate, ammonia * 10, 6.5]
         })
         st.bar_chart(nutrient_pie_data.set_index("Nutrient Core Element")) # تمثيل بياني عمودي    
-        st.dataframe(nutrient_pie_data, use_container_width=True) # عرض الجدول البياني مع ملء العرض الكامل للعمود   
+        st.dataframe(nutrient_pie_data, width='stretch') # عرض الجدول البياني مع ملء العرض الكامل للعمود   
 
 # ==========================================
 # --- TAB 2: PREDICTIVE MACHINE LEARNING AI ---
